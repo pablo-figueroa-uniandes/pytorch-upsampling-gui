@@ -1,0 +1,10 @@
+# Core
+torch>=2.0
+torchvision>=0.15
+pillow>=9.0
+numpy>=1.24
+
+# Pretrained super-resolution models (EDSR etc.), weights auto-download from
+# Hugging Face Hub on first use. Pulls in opencv-python, h5py,
+# huggingface-hub, and tqdm as transitive dependencies.
+super-image==0.2.0
