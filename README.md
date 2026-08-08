@@ -39,9 +39,11 @@ immediately — no need to supply your own image. You can also click
 `Browse...` to load any local image, or `Load Sample 2` for a second
 synthetic test image.
 
-The first time you select **Pretrained SR (EDSR)** as the method, the
-model weights (a few MB) are downloaded once from the Hugging Face Hub and
-cached locally; every run after that is instant.
+The first time you select **Pretrained SR** as the method and pick a given
+model (EDSR, MSRN, or DRLN — each with a faster "-BAM" variant and a
+higher-quality full variant), its weights (a few MB) are downloaded once
+from the Hugging Face Hub and cached locally; every run after that is
+instant.
 
 ### Pixel magnifier
 
@@ -154,7 +156,7 @@ for those modes) are two additional knobs worth understanding:
   intended to reduce aliasing when *downsampling*; for upsampling its
   effect is a mild extra smoothing.
 
-### Pretrained super-resolution (EDSR)
+### Pretrained super-resolution (EDSR, MSRN, DRLN)
 
 All four methods above are purely mathematical resampling — they only
 ever combine information that's already present in the source image. A
@@ -163,29 +165,45 @@ network trained on many pairs of (low-resolution, high-resolution)
 images to learn what plausible fine detail *usually* looks like, and
 synthesizes new detail accordingly.
 
-This app uses **EDSR** (Enhanced Deep residual networks for Super-
-Resolution) via the [`super-image`](https://pypi.org/project/super-image/)
-package, which loads pretrained weights from the Hugging Face Hub
-(`eugenesiow/edsr-base` and `eugenesiow/edsr`). EDSR is a stack of
-residual blocks (convolution → ReLU → convolution, with a skip connection
-added back to the block's input) operating at the low-resolution size,
-followed by an upsampling stage at the end of the network. Learning at
-the original resolution and only upsampling at the very end is more
-efficient and lets the residual blocks focus purely on refining detail
-rather than also having to reason at a larger spatial size throughout.
+This app offers three such architectures via the
+[`super-image`](https://pypi.org/project/super-image/) package, which loads
+pretrained weights from the Hugging Face Hub. Each has a faster "-BAM"
+variant and a slower, higher-quality full variant:
 
-Because the network was trained to reconstruct realistic high-resolution
-images, its output can look noticeably sharper and more detailed than any
-of the classic methods at the same scale factor — but it can also
-hallucinate detail that wasn't really there, since it's making a learned
-guess rather than a mathematical guarantee. Like bicubic, its raw output
-isn't guaranteed to stay within `[0, 1]`, which is why the same clamping
-step in `image_utils.tensor_to_pil` is used for every method's output.
+- **EDSR** (Enhanced Deep residual networks for Super-Resolution,
+  `eugenesiow/edsr-base` / `eugenesiow/edsr`) — a stack of residual blocks
+  (convolution → ReLU → convolution, with a skip connection added back to
+  the block's input) operating at the low-resolution size, followed by an
+  upsampling stage at the very end of the network. Learning at the
+  original resolution and only upsampling at the end is more efficient
+  and lets the residual blocks focus purely on refining detail rather
+  than also having to reason at a larger spatial size throughout.
+- **MSRN** (Multi-Scale Residual Network, `eugenesiow/msrn-bam` /
+  `eugenesiow/msrn`) — extends the residual-block idea with multi-scale
+  residual blocks that run convolutions at multiple kernel sizes in
+  parallel within each block, letting the network capture both fine and
+  coarse detail at every stage instead of relying on depth alone.
+- **DRLN** (Densely Residual Laplacian Network, `eugenesiow/drln-bam` /
+  `eugenesiow/drln`) — chains residual blocks more densely (each block
+  sees the outputs of earlier blocks, not just the previous one) and adds
+  a Laplacian attention mechanism that lets the network weight different
+  frequency bands of detail differently, aimed at recovering finer
+  high-frequency texture.
 
-`Model` (EDSR-base vs. EDSR) and `Scale` (2x/3x/4x, the only scales with
-published pretrained weights) are exposed as separate controls from the
-classic methods' continuous scale slider, since the SR model only works
-at the specific integer scales it was trained for.
+Because these networks were trained to reconstruct realistic
+high-resolution images, their output can look noticeably sharper and more
+detailed than any of the classic methods at the same scale factor — but
+they can also hallucinate detail that wasn't really there, since each is
+making a learned guess rather than a mathematical guarantee. Like
+bicubic, their raw output isn't guaranteed to stay within `[0, 1]`, which
+is why the same clamping step in `image_utils.tensor_to_pil` is used for
+every method's output.
+
+`Model` (the six variants above) and `Scale` (2x/3x/4x, the only scales
+with published pretrained weights for all three architectures) are
+exposed as separate controls from the classic methods' continuous scale
+slider, since these models only work at the specific integer scales they
+were trained for.
 
 ## Error handling
 

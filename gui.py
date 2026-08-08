@@ -85,7 +85,7 @@ class App(ttk.Frame):
         method_row = ttk.Frame(controls)
         method_row.pack(side="top", fill="x")
         ttk.Label(method_row, text="Method:").pack(side="left")
-        self.method_names = upsampling.CLASSIC_MODES + ["Pretrained SR (EDSR)"]
+        self.method_names = upsampling.CLASSIC_MODES + ["Pretrained SR"]
         self.method_var = tk.StringVar(value="bicubic")
         method_box = ttk.Combobox(method_row, textvariable=self.method_var,
                                    values=self.method_names, state="readonly")
@@ -159,7 +159,7 @@ class App(ttk.Frame):
         self.scale_label_var.set(f"{float(value):.1f}x")
 
     def _on_method_change(self):
-        is_sr = self.method_var.get() == "Pretrained SR (EDSR)"
+        is_sr = self.method_var.get() == "Pretrained SR"
         self.classic_frame.pack_forget()
         self.sr_frame.pack_forget()
         if is_sr:
@@ -210,10 +210,12 @@ class App(ttk.Frame):
 
     def _collect_params(self):
         method = self.method_var.get()
-        if method == "Pretrained SR (EDSR)":
+        if method == "Pretrained SR":
+            architecture, repo_id = upsampling.SR_VARIANTS[self.sr_variant_var.get()]
             return {
                 "method": "sr",
-                "repo_id": upsampling.SR_VARIANTS[self.sr_variant_var.get()],
+                "architecture": architecture,
+                "repo_id": repo_id,
                 "scale": self.sr_scale_var.get(),
             }
         return {
@@ -244,7 +246,8 @@ class App(ttk.Frame):
         try:
             tensor = image_utils.pil_to_tensor(source_image)
             if params["method"] == "sr":
-                out = upsampling.sr_upsample(tensor, params["repo_id"], params["scale"])
+                out = upsampling.sr_upsample(
+                    tensor, params["architecture"], params["repo_id"], params["scale"])
             else:
                 out = upsampling.classic_upsample(
                     tensor, params["mode"], params["scale_factor"],

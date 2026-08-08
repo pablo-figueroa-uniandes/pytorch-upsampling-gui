@@ -8,9 +8,11 @@ upsampling methods.
 - **Classic interpolation** (`upsampling.py`): nearest, bilinear,
   bicubic, area via `torch.nn.functional.interpolate`, with
   scale-factor, `align_corners`, and `antialias` controls.
-- **Pretrained super-resolution**: EDSR models (`super-image` package,
-  weights from Hugging Face Hub) as a genuinely learned alternative to
-  the classic methods, selectable model variant and scale (2x/3x/4x).
+- **Pretrained super-resolution**: EDSR, MSRN, and DRLN models
+  (`super-image` package, weights from Hugging Face Hub) as a genuinely
+  learned alternative to the classic methods, each with a fast "-BAM"
+  variant and a higher-quality full variant, selectable model and scale
+  (2x/3x/4x).
 - **GUI** (`gui.py`): Original/Result canvases, method dropdown with
   per-method parameter panels, Apply button that runs processing on a
   background thread (via `queue.Queue` + `after()` polling) so the UI
@@ -37,8 +39,10 @@ upsampling methods.
 
 - Explicit "Apply" button rather than live-updating on every parameter
   change, so classic and SR methods share one code path.
-- `super-image`'s EDSR chosen over training a model from scratch —
-  real pretrained weights, small dependency footprint.
+- `super-image`'s pretrained models chosen over training from scratch —
+  real pretrained weights, small dependency footprint. `SR_VARIANTS`
+  maps each display name to an `(architecture, repo_id)` pair so
+  `upsampling.py` can pick the right model class per variant.
 - Magnifier logic verified by driving the app's event handlers directly
   in-process, since OS-level synthetic mouse clicks proved unreliable
   for automated testing in this environment. The same technique (plus
