@@ -9,6 +9,10 @@ pretrained deep-learning super-resolution model.
   and an Apply button.</em>
 </p>
 
+For a full write-up of the theory behind each method and a guided tour of
+the code, see
+[`docs/Upsampling_Theory_and_Code.pdf`](docs/Upsampling_Theory_and_Code.pdf).
+
 ## Running it
 
 ```bash
