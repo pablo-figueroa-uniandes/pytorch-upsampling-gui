@@ -13,13 +13,23 @@ import upsampling
 
 PANE_SIZE = (480, 480)
 
+MAGNIFIER_DISPLAY = 220  # size (px) of the zoomed-pixel canvases
+MAGNIFIER_RADIUS = 6     # half-width, in *original*-image pixels, of the sampled area
+
 
 class App(ttk.Frame):
     def __init__(self, master):
         super().__init__(master)
         self.source_image = None  # full-resolution PIL image
+        self.result_image = None  # full-resolution upsampled PIL image (after Apply)
         self._original_photo = None
         self._result_photo = None
+        self._original_zoom_photo = None
+        self._result_zoom_photo = None
+        self._original_view = None  # {"image", "preview_size", "scale"} for coord mapping
+        self._result_view = None
+        self._original_box_id = None
+        self._result_box_id = None
         self._queue = queue.Queue()
 
         self._build_widgets()
@@ -45,6 +55,10 @@ class App(ttk.Frame):
         self.original_canvas = tk.Canvas(original_col, width=PANE_SIZE[0],
                                           height=PANE_SIZE[1], background="#222")
         self.original_canvas.pack()
+        ttk.Label(original_col, text="Zoomed pixels (hover or click either image)").pack(pady=(6, 0))
+        self.original_zoom_canvas = tk.Canvas(original_col, width=MAGNIFIER_DISPLAY,
+                                               height=MAGNIFIER_DISPLAY, background="#333")
+        self.original_zoom_canvas.pack()
 
         result_col = ttk.Frame(panes)
         result_col.pack(side="left", padx=4)
@@ -52,6 +66,18 @@ class App(ttk.Frame):
         self.result_canvas = tk.Canvas(result_col, width=PANE_SIZE[0],
                                         height=PANE_SIZE[1], background="#222")
         self.result_canvas.pack()
+        ttk.Label(result_col, text="Zoomed pixels (hover or click either image)").pack(pady=(6, 0))
+        self.result_zoom_canvas = tk.Canvas(result_col, width=MAGNIFIER_DISPLAY,
+                                             height=MAGNIFIER_DISPLAY, background="#333")
+        self.result_zoom_canvas.pack()
+
+        for event in ("<Motion>", "<Button-1>", "<B1-Motion>"):
+            self.original_canvas.bind(event, lambda e: self._on_hover("original", e))
+            self.result_canvas.bind(event, lambda e: self._on_hover("result", e))
+        self.original_canvas.bind("<Leave>", lambda e: self._on_leave())
+        self.result_canvas.bind("<Leave>", lambda e: self._on_leave())
+        self._clear_zoom_canvas(self.original_zoom_canvas, "Hover an image")
+        self._clear_zoom_canvas(self.result_zoom_canvas, "Hover an image")
 
         controls = ttk.Frame(self)
         controls.pack(side="top", fill="x", padx=8, pady=8)
@@ -172,7 +198,15 @@ class App(ttk.Frame):
         self.original_canvas.delete("all")
         self.original_canvas.create_image(PANE_SIZE[0] // 2, PANE_SIZE[1] // 2,
                                            image=self._original_photo, anchor="center")
+        self._original_view = self._make_view(image, preview)
+        self._original_box_id = None
+
+        # Previous result no longer corresponds to the new source image.
+        self.result_image = None
+        self._result_view = None
+        self._result_box_id = None
         self.result_canvas.delete("all")
+        self._on_leave()
 
     def _collect_params(self):
         method = self.method_var.get()
@@ -242,8 +276,103 @@ class App(ttk.Frame):
                 "the model weights could not be downloaded (check your internet connection).")
 
     def _display_result(self, image):
+        self.result_image = image
         preview = image_utils.make_preview(image, PANE_SIZE)
         self._result_photo = image_utils.to_photoimage(preview)
         self.result_canvas.delete("all")
         self.result_canvas.create_image(PANE_SIZE[0] // 2, PANE_SIZE[1] // 2,
                                          image=self._result_photo, anchor="center")
+        self._result_view = self._make_view(image, preview)
+        self._result_box_id = None
+
+    # ---- magnifying glass ---------------------------------------------
+
+    @staticmethod
+    def _make_view(full_image, preview):
+        return {
+            "image": full_image,
+            "preview_size": preview.size,
+            "scale": preview.width / full_image.width,
+        }
+
+    def _clear_zoom_canvas(self, canvas, message):
+        canvas.delete("all")
+        canvas.create_text(MAGNIFIER_DISPLAY // 2, MAGNIFIER_DISPLAY // 2,
+                            text=message, fill="#999")
+
+    def _on_leave(self):
+        self._set_box(self.original_canvas, "_original_box_id", None)
+        self._set_box(self.result_canvas, "_result_box_id", None)
+        self._clear_zoom_canvas(self.original_zoom_canvas, "Hover an image")
+        self._clear_zoom_canvas(self.result_zoom_canvas, "Hover an image")
+
+    def _on_hover(self, pane, event):
+        view = self._original_view if pane == "original" else self._result_view
+        if view is None:
+            return
+
+        pw, ph = view["preview_size"]
+        x0 = PANE_SIZE[0] / 2 - pw / 2
+        y0 = PANE_SIZE[1] / 2 - ph / 2
+        px, py = event.x - x0, event.y - y0
+        if not (0 <= px < pw and 0 <= py < ph):
+            self._on_leave()
+            return
+
+        fx, fy = px / view["scale"], py / view["scale"]
+        if pane == "original":
+            ox, oy = fx, fy
+        else:
+            rx = self.source_image.width / self.result_image.width
+            ry = self.source_image.height / self.result_image.height
+            ox, oy = fx * rx, fy * ry
+
+        self._update_magnifiers(ox, oy)
+
+    def _update_magnifiers(self, ox, oy):
+        orig_patch = image_utils.magnify(self.source_image, ox, oy,
+                                          MAGNIFIER_RADIUS, MAGNIFIER_DISPLAY)
+        self._original_zoom_photo = image_utils.to_photoimage(orig_patch)
+        self.original_zoom_canvas.delete("all")
+        self.original_zoom_canvas.create_image(0, 0, image=self._original_zoom_photo,
+                                                anchor="nw")
+        self._set_box(self.original_canvas, "_original_box_id",
+                      self._preview_rect(self._original_view, ox, oy, MAGNIFIER_RADIUS))
+
+        if self.result_image is None:
+            self._clear_zoom_canvas(self.result_zoom_canvas, "Click Apply first")
+            self._set_box(self.result_canvas, "_result_box_id", None)
+            return
+
+        rx = self.result_image.width / self.source_image.width
+        ry = self.result_image.height / self.source_image.height
+        result_patch = image_utils.magnify(self.result_image, ox * rx, oy * ry,
+                                            MAGNIFIER_RADIUS * max(rx, ry), MAGNIFIER_DISPLAY)
+        self._result_zoom_photo = image_utils.to_photoimage(result_patch)
+        self.result_zoom_canvas.delete("all")
+        self.result_zoom_canvas.create_image(0, 0, image=self._result_zoom_photo, anchor="nw")
+        self._set_box(self.result_canvas, "_result_box_id",
+                      self._preview_rect(self._result_view, ox * rx, oy * ry,
+                                         MAGNIFIER_RADIUS * max(rx, ry)))
+
+    @staticmethod
+    def _preview_rect(view, cx, cy, radius):
+        pw, ph = view["preview_size"]
+        scale = view["scale"]
+        x0 = PANE_SIZE[0] / 2 - pw / 2
+        y0 = PANE_SIZE[1] / 2 - ph / 2
+        return (x0 + (cx - radius) * scale, y0 + (cy - radius) * scale,
+                x0 + (cx + radius + 1) * scale, y0 + (cy + radius + 1) * scale)
+
+    def _set_box(self, canvas, attr, coords):
+        box_id = getattr(self, attr)
+        if coords is None:
+            if box_id is not None:
+                canvas.delete(box_id)
+                setattr(self, attr, None)
+            return
+        if box_id is None:
+            box_id = canvas.create_rectangle(*coords, outline="#ffcc00", width=2)
+            setattr(self, attr, box_id)
+        else:
+            canvas.coords(box_id, *coords)

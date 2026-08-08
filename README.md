@@ -39,6 +39,15 @@ The first time you select **Pretrained SR (EDSR)** as the method, the
 model weights (a few MB) are downloaded once from the Hugging Face Hub and
 cached locally; every run after that is instant.
 
+### Pixel magnifier
+
+Hover (or click/drag) over either the Original or Result image to open a
+zoomed, pixel-level view of that area under both panes simultaneously — a
+yellow box marks the sampled region on each image. Because moving over
+either pane updates both magnifiers at the matching physical location,
+you can directly compare, pixel by pixel, what a method actually did to
+a specific area rather than judging the whole image at a glance.
+
 ## Project layout
 
 | File | Responsibility |

@@ -3,7 +3,7 @@ scaling. No GUI event handling here -- just data conversion helpers.
 """
 
 import torch
-from PIL import Image, ImageTk
+from PIL import Image, ImageDraw, ImageTk
 import torchvision.transforms.functional as TF
 
 
@@ -47,6 +47,51 @@ def make_preview(image, max_size=(480, 480)):
     preview = image.copy()
     preview.thumbnail(max_size, Image.LANCZOS)
     return preview
+
+
+def magnify(image, center_x, center_y, radius, target_size):
+    """Crop a (2*radius+1)-square pixel patch centered on (center_x,
+    center_y) and scale it up to target_size with nearest-neighbor
+    resampling, so individual source pixels are visible as flat blocks.
+    A thin grid is overlaid on top of the pixel boundaries when each
+    source pixel maps to a large enough block to make it useful.
+
+    The center is clamped so the returned patch is always the full
+    requested size (never distorted by clipping at the image border).
+    """
+    radius = max(1, int(round(radius)))
+    box = radius * 2 + 1
+    width, height = image.size
+
+    if width <= box:
+        left, right = 0, width
+    else:
+        cx = max(radius, min(center_x, width - radius - 1))
+        left = int(round(cx - radius))
+        right = left + box
+
+    if height <= box:
+        top, bottom = 0, height
+    else:
+        cy = max(radius, min(center_y, height - radius - 1))
+        top = int(round(cy - radius))
+        bottom = top + box
+
+    patch = image.crop((left, top, right, bottom))
+    patch = patch.resize((target_size, target_size), Image.NEAREST)
+
+    cols, rows = right - left, bottom - top
+    cell_w, cell_h = target_size / cols, target_size / rows
+    if cell_w >= 6 and cell_h >= 6:
+        draw = ImageDraw.Draw(patch)
+        for i in range(1, cols):
+            x = round(i * cell_w)
+            draw.line([(x, 0), (x, target_size)], fill=(120, 120, 120))
+        for j in range(1, rows):
+            y = round(j * cell_h)
+            draw.line([(0, y), (target_size, y)], fill=(120, 120, 120))
+
+    return patch
 
 
 def to_photoimage(image):
