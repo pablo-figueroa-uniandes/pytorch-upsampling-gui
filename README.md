@@ -1,8 +1,8 @@
 # PyTorch Upsampling Comparison
 
 A small desktop GUI (Tkinter + PyTorch) for visually comparing different
-ways of upsampling an image: classic interpolation methods and a real
-pretrained deep-learning super-resolution model.
+ways of upsampling an image: classic interpolation methods and three real
+pretrained deep-learning super-resolution models (EDSR, MSRN, DRLN).
 
 <p align="center">
   <em>Original vs. Result panes, a method dropdown, per-method parameters,
