@@ -25,6 +25,14 @@ upsampling methods.
   with output clamped to `[0,1]` before display (bicubic overshoot and
   SR outputs can exceed that range).
 
+- **PDF write-up** (`docs/Upsampling_Theory_and_Code.pdf`): a 24-page
+  document covering the theory behind each method (including a
+  generated intensity-profile plot measuring bicubic's actual
+  overshoot, and a five-way visual comparison rendered with the app's
+  own code), an application walkthrough with screenshots, and a full
+  annotated code listing. Built as HTML and rendered via headless
+  Chrome.
+
 ## Key decisions
 
 - Explicit "Apply" button rather than live-updating on every parameter
@@ -33,11 +41,14 @@ upsampling methods.
   real pretrained weights, small dependency footprint.
 - Magnifier logic verified by driving the app's event handlers directly
   in-process, since OS-level synthetic mouse clicks proved unreliable
-  for automated testing in this environment.
+  for automated testing in this environment. The same technique (plus
+  Tkinter's own geometry info rather than OS window lookups) was reused
+  to capture the app screenshots for the PDF deterministically.
 
 ## Repo
 
 MIT licensed. Pushed to
 [pytorch-upsampling-gui](https://github.com/pablo-figueroa-uniandes/pytorch-upsampling-gui).
-See `README.md` for setup/run instructions and the theory behind each
-method.
+See `README.md` for setup/run instructions, or
+`docs/Upsampling_Theory_and_Code.pdf` for the full theory and code
+write-up.
